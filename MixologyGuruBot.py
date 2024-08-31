@@ -1,16 +1,18 @@
 import telebot
 from telebot import types
+from Cocktails_Ingredients import *
 import config
 import logging
 
 bot = telebot.TeleBot(config.BOT_TOKEN)
 
-logging = logging.basicConfig(level=logging.INFO,
-                              filename='bar.log',
-                              filemode='a',
-                              format='%(asctime)s - %(levelname)s - %(message)s',
-                              datefmt='%Y-%m-%d %H:%M:%S')
+logging.basicConfig(level=logging.INFO,
+                    filename='bar.log',
+                    filemode='a',
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    datefmt='%Y-%m-%d %H:%M:%S')
 
+# Вынести в БД
 cocktail_recipes = {
     "Маргарита": "50 мл текилы\n25 мл трипл-сека (или другого апельсинового ликёра)\n25 мл свежевыжатого сока лайма\n10 мл простого сиропа (по желанию, для сладости)\n"
                  "Лёд\nСоль для обсыпки бокала (по желанию)\nЛомтик лайма для украшения\nСпособ приготовления:\nПодготовьте бокал: Обсыпьте край бокала солью (по желанию).\n"
@@ -74,10 +76,7 @@ cocktail_recipes = {
                "Способ приготовления:\nСмешайте светлый ром, куантро, сироп оргеат, сок лайма и сахарный сироп в шейкере с льдом. Встряхните и процедите в стакан с льдом.\n"}
 
 
-popular_cocktails = ["1. Май Тай", "2. Маргарита", "3. Мохито", "4. Дайкири"]
-
-
-# Создание клавы
+# Создание клавиатуры
 def menu_keyboard():
     markup = types.InlineKeyboardMarkup()
     markup.add(types.InlineKeyboardButton("🍸Получить рецепт коктейля🍸", callback_data="get_recipe"))
@@ -100,22 +99,48 @@ def about(message):
     try:
         bot.send_message(message.chat.id, 'Мы открыты с 10:00 до 23:00.\nАдрес: ул. Какая, д. 123\nТелефон: +00000000')
     except telebot.apihelper.ApiTelegramException as er:
-        logging.warning(f'Возникла ошибка {er}, попробкйте еще раз')
+        logging.warning(f'Возникла ошибка {er}, попробуйте еще раз')
 
 
-@bot.message_handler(commands=['popular_cocktails', 'топ коктейлей'])
-def top_cocktails(message):
+# Выводит список популярных коктейлей (Команда из выпадающего меню слева)
+@bot.message_handler(commands=['popular_cocktails', 'популярные коктейли'])
+def popular_cocktails(message):
     try:
-        popular_list = "\n".join(popular_cocktails)
-        bot.send_message(message.chat.id, f"Популярные коктейли:\n{popular_list}")
+        popular_list = Cocktail.top_cocktails()
+        bot.send_message(message.chat.id, popular_list)
     except telebot.apihelper.ApiTelegramException as er:
-        logging.warning(f'Возникла ошибка {er}, попробкйте еще раз')
+        logging.warning(f'Возникла ошибка {er}, попробуйте еще раз')
 
 
+# Получить рецепт коктейля по его названию
+@bot.callback_query_handler(func=lambda call: call.data == 'get_recipe')
+def handler_get_recipe(call):
+    try:
+        msg = bot.send_message(call.message.chat.id, 'Введите название коктейля ')
+        bot.register_next_step_handler(msg, handle_cocktail_recipe)
+    except telebot.apihelper.ApiTelegramException as er:
+        logging.error(f'Ошибка Telegram API: {er}')
+        bot.send_message(call.message.chat.id, 'Произошла ошибка. Попробуйте еще раз.')
+
+
+# Ищет рецепт в словаре по его названию
+def handle_cocktail_recipe(message):
+    cocktail_name = message.text.strip()
+    recipe = cocktail_recipes.get(cocktail_name)
+    if recipe:
+        bot.send_message(message.chat.id, f"Рецепт коктейля '{cocktail_name}':\n{recipe}")
+    else:
+        bot.send_message(message.chat.id, "Извините, рецепт этого коктейля не найден. Попробуйте другой.")
+        logging.info(f'НЕТ РЕЦЕПТА ДЛЯ: {cocktail_name}')
+    bot.send_message(message.chat.id, "Хотите попробовать другой коктейль? 'Да' / 'Нет'?")
+    bot.register_next_step_handler(message, handle_repeat_request)
+
+
+# Повторно спрашивает название коктейля
 def handle_repeat_request(message):
     if message.text.strip().lower() == 'да':
         bot.send_message(message.chat.id, 'Введите название коктейля:')
-        bot.register_next_step_handler(message, cocktail_recipe)
+        bot.register_next_step_handler(message, handle_cocktail_recipe)
     elif message.text.strip().lower() == 'нет':
         bot.send_message(message.chat.id, "Выберите другую опцию")
     else:
@@ -123,22 +148,16 @@ def handle_repeat_request(message):
         bot.register_next_step_handler(message, handle_repeat_request)
 
 
-@bot.callback_query_handler(func=lambda call: call.data == 'get_recipe')
-def handler_get_recipe(call):
-    try:
-        msg = bot.send_message(call.message.chat.id, 'Введите название коктейля ')
-        bot.register_next_step_handler(msg, cocktail_recipe)
-    except telebot.apihelper.ApiTelegramException as er:
-        logging.error(f'Ошибка Telegram API: {er}')
-        bot.send_message(call.message.chat.id, 'Произошла ошибка. Попробуйте еще раз.')
-
-
+# Выводит список популярных коктейлей (При нажатии на кнопку в главном меню бота)
 @bot.callback_query_handler(func=lambda call: call.data == "popular_cocktails")
 def handle_popular_cocktails(call):
-    popular_list = "\n".join(popular_cocktails)
-    bot.send_message(call.message.chat.id, f"Популярные коктейли:\n{popular_list}")
+    popular_list = Cocktail.top_cocktails()
+    bot.send_message(call.message.chat.id, popular_list)
 
 
+""" Сделать заказ через бота 
+    (ДОРАБОТАТЬ МЕТОД ОТПРАВКИ ЗАКАЗА В БАР И ОБРАБОТКУ СТАТУСА ГОТОВНОСТИ)
+    при ненадобности можно удалить """
 @bot.callback_query_handler(func=lambda call: call.data == "order_cocktail")
 def handle_order_cocktail(call):
     bot.send_message(call.message.chat.id, "Для заказа коктейля, пожалуйста, напишите его название.")
@@ -150,23 +169,11 @@ def handle_bar_info(call):
     bot.send_message(call.message.chat.id, info)
 
 
-@bot.callback_query_handler(func=lambda call: True)  # поймает все неожиданные данные
+# Поймает все неожиданные данные
+@bot.callback_query_handler(func=lambda call: True)
 def handle_default(call):
-    logging.info(bot.send_message(call.message.chat.id, "Извините, опция не распознана."))
-
-
-@bot.message_handler(commands=['recipe'])
-def cocktail_recipe(message):
-    cocktail_names = message.text
-    recipe = cocktail_recipes.get(cocktail_names)
-    if recipe:
-        bot.send_message(message.chat.id, f"Рецепт коктейля '{cocktail_names}':\n{recipe}")
-    else:
-        bot.send_message(message.chat.id, "Извините, рецепт этого коктейля не найден. Попробуйте другой.")
-        logging.info(f'НЕТ РЕЦЕПТА ДЛЯ, {cocktail_names}')
-        # После выдачи рецепта запрашиваем, нужно ли повторить запрос
-    bot.send_message(message.chat.id, "Хотите попробовать другой коктейль? 'Да' / 'Нет'?.")
-    bot.register_next_step_handler(message, handle_repeat_request)
+    logging.info("Извините, опция не распознана.")
+    bot.send_message(call.message.chat.id, "Извините, опция не распознана.")
 
 
 bot.polling(none_stop=True)
