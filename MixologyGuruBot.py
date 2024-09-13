@@ -3,6 +3,7 @@ from telebot import types
 from Cocktails_Ingredients import *
 import config
 import logging
+import json
 
 bot = telebot.TeleBot(config.BOT_TOKEN)
 
@@ -144,7 +145,8 @@ def handle_repeat_request(message):
     elif message.text.strip().lower() == 'нет':
         bot.send_message(message.chat.id, "Выберите другую опцию")
     else:
-        bot.send_message(message.chat.id, "Неизвестная команда. Пожалуйста, напишите 'Да' для продолжения или 'Нет' для завершения.")
+        bot.send_message(message.chat.id,
+                         "Неизвестная команда. Пожалуйста, напишите 'Да' для продолжения или 'Нет' для завершения.")
         bot.register_next_step_handler(message, handle_repeat_request)
 
 
@@ -158,6 +160,8 @@ def handle_popular_cocktails(call):
 """ Сделать заказ через бота 
     (ДОРАБОТАТЬ МЕТОД ОТПРАВКИ ЗАКАЗА В БАР И ОБРАБОТКУ СТАТУСА ГОТОВНОСТИ)
     при ненадобности можно удалить """
+
+
 @bot.callback_query_handler(func=lambda call: call.data == "order_cocktail")
 def handle_order_cocktail(call):
     bot.send_message(call.message.chat.id, "Для заказа коктейля, пожалуйста, напишите его название.")
