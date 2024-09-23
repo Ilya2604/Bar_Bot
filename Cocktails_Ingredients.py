@@ -1,7 +1,22 @@
+import csv
 import json
+from abc import ABC, abstractmethod
 
-popular_cocktails = ["1. Май Тай", "2. Маргарита", "3. Мохито", "4. Дайкири"]
+#popular_cocktails = ["1. Май Тай", "2. Маргарита", "3. Мохито", "4. Дайкири"]
 
+
+class iRepository(ABC):
+    @abstractmethod
+    def load_date(self):
+        pass
+
+    @abstractmethod
+    def find_by_name(self, name: str):
+        pass
+
+    @abstractmethod
+    def find_by_tags(self, tags: []):
+        pass
 
 class Cocktail:
     def __init__(self, name, ingredients):
@@ -25,25 +40,26 @@ class Ingredient:
         self.amount = amount
 
 
-class DishService:
-    def __init__(self, name=None, tags=None):
-        self.name = name
-        self.tags = tags
+class DishService(iRepository):
+    def __init__(self, file_path: str):
+        self.file_path = file_path
+        self.data = self.load_date()
 
-    def find_by_name(self):
-        user_find_by_name = input("")
-        with open("dishes.json", "r", encoding="utf-8") as file:
+# Метод для работы с файлом JSON
+    def load_date(self):
+        with open(self.file_path, "r", encoding="utf-8") as file:
             data = json.load(file)
+        return data
+
+    def find_by_name(self, name: str):
+        data = self.load_date()
         for item in data["data"]:
-            if item["name"] == user_find_by_name:
+            if item["name"] == name:
                 return item["description"]
         return "Коктейль не найден"
 
-    def find_by_tags(self):
-        user_find_by_tags = input("")
-        tags = [tag.strip() for tag in user_find_by_tags.split(',')]
-        with open("dishes.json", "r", encoding="utf-8") as file:
-            data = json.load(file)
+    def find_by_tags(self, tags: str):
+        data = self.load_date()
         results = []
         for item in data["data"]:
             if set(tags).intersection(item.get("tags", [])):
@@ -54,9 +70,52 @@ class DishService:
             return "Коктейль не найден"
 
 
+class CsvRepository(iRepository):
+    def __int__(self, file_path: str):
+        self.file_path = file_path
+        self.data = self.load_date()
+
+    def load_date(self):
+        with open(self.file_path, "r", encoding="utf-8") as file:
+            data = csv.DictReader(file)
+        return data
+
+    def find_by_name(self, name: str):
+        data = self.load_date()
+        for item in data["data"]:
+            if item["name"] == name:
+                return item["description"]
+        return "Коктейль не найден"
+
+    def find_by_tags(self, tags: str):
+        data = self.load_date()
+        results = []
+        for item in data["data"]:
+            if set(tags).intersection(item.get("tags", [])):
+                results.append(item["name"])
+        if results:
+            return results
+        else:
+            return "Коктейль не найден"
 
 
-service = DishService()
-#print(service.find_by_name())
-#print(service.find_by_tags())
+#service = DishService(data='dishes.json')
 
+
+# Проверка работоспособности
+if __name__ == "__main__":
+    # Работа с JSON
+    #json_repo = DishService("dishes.json")
+    #user_find_by_name = input("")
+    #print(json_repo.find_by_name(user_find_by_name))
+    #user_find_by_tags = input("")
+    #tags = [tag.strip() for tag in user_find_by_tags.split(',')]
+    #print(json_repo.find_by_tags(tags))
+
+    # Работа с CSV
+    csv_repo = CsvRepository("dishes.csv")
+    user_find_by_name = input("")
+    print(csv_repo.find_by_name(user_find_by_name))
+    user_find_by_tags = input("")
+    tags = [tag.strip() for tag in user_find_by_tags.split(',')]
+    print(csv_repo.find_by_tags(tags))
